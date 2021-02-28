@@ -1,42 +1,21 @@
+mod mem;
+
 use std::fs::File;
 use std::io::{Read, Write};
 use std::ops::{Index, IndexMut};
 use std::borrow::BorrowMut;
 use std::io;
 
-struct Mem(Vec<i8>);
-
-impl Mem {
-    fn new(size: usize) -> Self {
-        Self (
-            vec![0; size],
-        )
-    }
-}
-
-impl Index<usize> for Mem {
-    type Output = i8;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-impl<'a> IndexMut<usize> for Mem {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        self.0[index].borrow_mut()
-    }
-}
 
 struct CPU {
     code: Vec<u8>,
-    mem: Mem,
+    mem: mem::Mem,
     ip: usize,
     dp: usize,
 }
 
 impl CPU {
-    fn new(code: Vec<u8>, mem: Mem) -> Self {
+    fn new(code: Vec<u8>, mem: mem::Mem) -> Self {
         Self {
             code,
             mem,
@@ -54,14 +33,11 @@ impl CPU {
     }
 
     fn inc_dp_value(&mut self) {
-        self.mem[self.dp] += 1;
+        self.mem[self.dp].wrapping_add(1);
     }
 
     fn dec_dp_value(&mut self) {
-        if self.mem[self.dp] == 0 {
-            println!("0");
-        }
-        self.mem[self.dp] -= 1;
+        self.mem[self.dp].wrapping_sub(1);
     }
 
     fn out_dp_value(&mut self) {
@@ -70,11 +46,15 @@ impl CPU {
     }
 
     fn inp_dp_value(&mut self) {
-        let value = match std::io::stdin().bytes().next() {
-            None => Ok(0),
+        eprint!("Input: ");
+        let value= match std::io::stdin().bytes().next() {
+            None => Ok(0), // On EOF
             Some(v) => v,
-        };
-        self.mem[self.ip] = value.unwrap() as i8;
+        }.unwrap();
+        // Discard all other chars
+        std::io::stdin().bytes().map(|result| result.unwrap()).take_while(|byte| *byte as char != '\n');
+        println!("Read {}", value as char);
+        self.mem[self.ip] = value as i8;
     }
 
     fn add(u: usize, i: i8) -> usize {
@@ -151,7 +131,7 @@ fn main() -> std::io::Result<()> {
     let mut file = File::open(filename)?;
     let mut code = Vec::with_capacity(512);
     file.read_to_end(&mut code)?;
-    let mut cpu = CPU::new(code, Mem::new(512));
+    let mut cpu = CPU::new(code, mem::Mem::new(512));
     cpu.run();
     Ok(())
 }
